@@ -287,6 +287,42 @@ Notes:
 - Group/channel tool restrictions are applied in addition to global/agent tool policy (deny still wins).
 - Some channels use different nesting for rooms/channels (e.g., Discord `guilds.*.channels.*`, Slack `channels.*`, MS Teams `teams.*.channels.*`).
 
+### Allow/deny semantics
+
+The `tools` object supports three properties:
+
+| Property    | Effect                                                                                     |
+| ----------- | ------------------------------------------------------------------------------------------ |
+| `allow`     | Allowlist of tools. If non-empty, only listed tools are permitted (unless also in `deny`). |
+| `deny`      | Denylist of tools. Always wins over `allow`. Use `["*"]` to block all tools.               |
+| `alsoAllow` | Additive allowlist for `toolsBySender` overrides. Merged with inherited `allow`.           |
+
+**Important:** An empty `allow: []` array means **no allowlist restriction** (all tools permitted), not "block everything". To block all tools, use `deny: ["*"]`.
+
+Examples:
+
+```json5
+// Allow only specific tools
+{ tools: { allow: ["read", "web_search"] } }
+
+// Block specific tools (all others allowed)
+{ tools: { deny: ["exec", "gateway"] } }
+
+// Block ALL tools
+{ tools: { deny: ["*"] } }
+
+// Allow everything (explicit)
+{ tools: { allow: ["*"] } }
+```
+
+Tool groups (expand to multiple tools):
+
+- `group:fs` → `read`, `write`, `edit`
+- `group:runtime` → `exec`, `process`
+- `group:messaging` → `message`, `tts`
+- `group:sessions` → `sessions_list`, `sessions_history`, `sessions_send`, `sessions_spawn`, `session_status`
+- `group:ui` → `browser`, `canvas`
+
 ## Group allowlists
 
 When `channels.whatsapp.groups`, `channels.telegram.groups`, or `channels.imessage.groups` is configured, the keys act as a group allowlist. Use `"*"` to allow all groups while still setting default mention behavior.

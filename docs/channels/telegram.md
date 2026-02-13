@@ -431,7 +431,46 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
     - message sends omit `message_thread_id` (Telegram rejects `sendMessage(...thread_id=1)`)
     - typing actions still include `message_thread_id`
 
-    Topic inheritance: topic entries inherit group settings unless overridden (`requireMention`, `allowFrom`, `skills`, `systemPrompt`, `enabled`, `groupPolicy`).
+    Topic inheritance: topic entries inherit group settings unless overridden (`requireMention`, `allowFrom`, `skills`, `systemPrompt`, `enabled`, `groupPolicy`, `tools`, `toolsBySender`).
+
+    ### Topic-level tool restrictions
+
+    Each topic can have its own tool policy, allowing different permission levels per topic:
+
+    ```json5
+    {
+      channels: {
+        telegram: {
+          groups: {
+            "-1001234567890": {
+              tools: { allow: ["read", "web_search"] }, // group default
+              topics: {
+                "22": {
+                  tools: { allow: ["*"] }, // admin topic: full access
+                },
+                "456": {
+                  tools: {
+                    allow: ["exec", "read", "write"],
+                    deny: ["gateway", "cron"],
+                  }, // dev topic: code tools only
+                },
+                "789": {
+                  tools: { deny: ["*"] }, // sandbox: no tools
+                  systemPrompt: "Tools are disabled in this topic.",
+                },
+              },
+            },
+          },
+        },
+      },
+    }
+    ```
+
+    Resolution order (most specific wins):
+    1. topic `toolsBySender` match
+    2. topic `tools`
+    3. group `toolsBySender` match
+    4. group `tools`
 
     Template context includes:
 
