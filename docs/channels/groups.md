@@ -297,7 +297,7 @@ The `tools` object supports three properties:
 | `deny`      | Denylist of tools. Always wins over `allow`. Use `["*"]` to block all tools.               |
 | `alsoAllow` | Additive allowlist for `toolsBySender` overrides. Merged with inherited `allow`.           |
 
-**Important:** An empty `allow: []` array means **no allowlist restriction** (all tools permitted), not "block everything". To block all tools, use `deny: ["*"]`.
+**Important:** An empty `allow: []` array means **no allowlist restriction** (all [core tools](/tools) permitted), not "block everything". To block all tools, use `deny: ["*"]`.
 
 Examples:
 
@@ -315,7 +315,7 @@ Examples:
 { tools: { allow: ["*"] } }
 ```
 
-Tool groups expand to multiple tools. See [Tool groups](/tools#tool-groups-shorthands) for the full list (`group:fs`, `group:runtime`, `group:sessions`, `group:memory`, `group:web`, `group:ui`, `group:automation`, `group:messaging`, `group:nodes`, `group:openclaw`).
+Tool names refer to [core tools](/tools) provided by OpenClaw. Tool groups (e.g., `group:fs`, `group:runtime`) expand to multiple tools — see [Tool groups](/tools#tool-groups-shorthands) for the full list.
 
 ## Group allowlists
 
