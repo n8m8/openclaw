@@ -365,6 +365,69 @@ describe("Agent-specific tool filtering", () => {
     expect(names).not.toContain("exec");
   });
 
+  it("should resolve telegram topic-level tool policy, overriding group policy", () => {
+    const cfg: OpenClawConfig = {
+      channels: {
+        telegram: {
+          groups: {
+            "123": {
+              tools: { allow: ["read"] },
+              topics: {
+                "456": {
+                  tools: { allow: ["exec", "write"] },
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const tools = createOpenClawCodingTools({
+      config: cfg,
+      sessionKey: "agent:main:telegram:group:123:topic:456",
+      messageProvider: "telegram",
+      workspaceDir: "/tmp/test-telegram-topic-override",
+      agentDir: "/tmp/agent-telegram-topic",
+    });
+    const names = tools.map((t) => t.name);
+    // Topic tools override group tools
+    expect(names).toContain("exec");
+    expect(names).toContain("write");
+    expect(names).not.toContain("read");
+  });
+
+  it("should fall back to group tool policy when topic has no tools configured", () => {
+    const cfg: OpenClawConfig = {
+      channels: {
+        telegram: {
+          groups: {
+            "123": {
+              tools: { allow: ["read"] },
+              topics: {
+                "456": {
+                  // No tools specified, should fall back to group
+                  enabled: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    };
+
+    const tools = createOpenClawCodingTools({
+      config: cfg,
+      sessionKey: "agent:main:telegram:group:123:topic:456",
+      messageProvider: "telegram",
+      workspaceDir: "/tmp/test-telegram-topic-fallback",
+      agentDir: "/tmp/agent-telegram-fallback",
+    });
+    const names = tools.map((t) => t.name);
+    expect(names).toContain("read");
+    expect(names).not.toContain("exec");
+  });
+
   it("should inherit group tool policy for subagents from spawnedBy session keys", () => {
     const cfg: OpenClawConfig = {
       channels: {

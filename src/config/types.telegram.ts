@@ -144,6 +144,10 @@ export type TelegramTopicConfig = {
   requireMention?: boolean;
   /** Per-topic override for group message policy (open|disabled|allowlist). */
   groupPolicy?: GroupPolicy;
+  /** Optional tool policy overrides for this topic. */
+  tools?: GroupToolPolicyConfig;
+  /** Optional per-sender tool policy overrides for this topic. */
+  toolsBySender?: GroupToolPolicyBySenderConfig;
   /** If specified, only load these skills for this topic. Omit = all skills; empty = no skills. */
   skills?: string[];
   /** If false, disable the bot for this topic. */

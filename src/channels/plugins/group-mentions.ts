@@ -254,11 +254,41 @@ export function resolveBlueBubblesGroupRequireMention(params: GroupMentionParams
 export function resolveTelegramGroupToolPolicy(
   params: GroupMentionParams,
 ): GroupToolPolicyConfig | undefined {
-  const { chatId } = parseTelegramGroupId(params.groupId);
+  const { chatId, topicId } = parseTelegramGroupId(params.groupId);
+  const resolvedChatId = chatId ?? params.groupId;
+
+  // If we have a topic, check topic-level tools first
+  if (topicId && resolvedChatId) {
+    const telegramConfig = params.cfg.channels?.telegram;
+    const groups = telegramConfig?.groups;
+    const groupConfig = groups?.[resolvedChatId];
+    const topicConfig = groupConfig?.topics?.[topicId];
+
+    if (topicConfig) {
+      // Check topic-level toolsBySender first
+      const topicSenderPolicy = resolveToolsBySender({
+        toolsBySender: topicConfig.toolsBySender,
+        senderId: params.senderId,
+        senderName: params.senderName,
+        senderUsername: params.senderUsername,
+        senderE164: params.senderE164,
+      });
+      if (topicSenderPolicy) {
+        return topicSenderPolicy;
+      }
+
+      // Check topic-level tools
+      if (topicConfig.tools) {
+        return topicConfig.tools;
+      }
+    }
+  }
+
+  // Fall back to group-level resolution
   return resolveChannelGroupToolsPolicy({
     cfg: params.cfg,
     channel: "telegram",
-    groupId: chatId ?? params.groupId,
+    groupId: resolvedChatId,
     accountId: params.accountId,
     senderId: params.senderId,
     senderName: params.senderName,
