@@ -38,7 +38,7 @@ export const TelegramTopicSchema = z
   .object({
     requireMention: z.boolean().optional(),
     groupPolicy: GroupPolicySchema.optional(),
-    tools: ToolPolicySchema,
+    tools: ToolPolicySchema.optional(),
     toolsBySender: ToolPolicyBySenderSchema,
     skills: z.array(z.string()).optional(),
     enabled: z.boolean().optional(),
