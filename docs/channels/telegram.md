@@ -472,6 +472,42 @@ curl "https://api.telegram.org/bot<bot_token>/getUpdates"
     3. group `toolsBySender` match
     4. group `tools`
 
+    ### Topic-level agent routing
+
+    Route different forum topics to different agents using bindings. The topic ID is embedded in the peer `id`:
+
+    ```json5
+    {
+      bindings: [
+        {
+          agentId: "support-agent",
+          match: {
+            channel: "telegram",
+            peer: {
+              kind: "group",
+              id: "-1001234567890:topic:100", // Support topic
+            },
+          },
+        },
+        {
+          agentId: "dev-agent",
+          match: {
+            channel: "telegram",
+            peer: {
+              kind: "group",
+              id: "-1001234567890:topic:200", // Dev topic
+            },
+          },
+        },
+      ],
+    }
+    ```
+
+    Notes:
+    - Topic ID format: `<chat_id>:topic:<message_thread_id>`
+    - Bindings with just `<chat_id>` (no topic suffix) match any topic in that group
+    - Combine with topic-level `tools` config for fine-grained control
+
     Template context includes:
 
     - `MessageThreadId`
