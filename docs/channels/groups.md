@@ -315,13 +315,7 @@ Examples:
 { tools: { allow: ["*"] } }
 ```
 
-Tool groups (expand to multiple tools):
-
-- `group:fs` → `read`, `write`, `edit`
-- `group:runtime` → `exec`, `process`
-- `group:messaging` → `message`, `tts`
-- `group:sessions` → `sessions_list`, `sessions_history`, `sessions_send`, `sessions_spawn`, `session_status`
-- `group:ui` → `browser`, `canvas`
+Tool groups expand to multiple tools. See [Tool groups](/tools#tool-groups-shorthands) for the full list (`group:fs`, `group:runtime`, `group:sessions`, `group:memory`, `group:web`, `group:ui`, `group:automation`, `group:messaging`, `group:nodes`, `group:openclaw`).
 
 ## Group allowlists
 
