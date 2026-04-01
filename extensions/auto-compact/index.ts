@@ -145,32 +145,88 @@ async function checkAndCompact(sessionKey: string, api: OpenClawPluginApi) {
   }
 }
 
-// Session management functions (need to wire these up to OpenClaw's internals)
-async function loadSession(sessionKey: string, api: any): Promise<any | null> {
-  // TODO: Access OpenClaw's session manager
-  // This needs to be exposed via the plugin API
-  // For now, return null to avoid errors
+// Session management functions
+async function loadSession(sessionKey: string, api: OpenClawPluginApi): Promise<any | null> {
+  try {
+    // Use plugin runtime API to get session messages
+    const result = await api.runtime.subagent.getSessionMessages({
+      sessionKey,
+    });
 
-  log.warn("Session loading not yet implemented in plugin API");
-  return null;
+    if (!result.messages || result.messages.length === 0) {
+      return null;
+    }
+
+    return {
+      messages: result.messages,
+      sessionKey,
+    };
+  } catch (err) {
+    log.error(`Failed to load session ${sessionKey}`, err);
+    return null;
+  }
 }
 
-async function saveSession(sessionKey: string, session: any, api: any): Promise<void> {
-  // TODO: Access OpenClaw's session manager
-  // This needs to be exposed via the plugin API
+async function saveSession(
+  sessionKey: string,
+  session: any,
+  api: OpenClawPluginApi,
+): Promise<void> {
+  // LIMITATION: Plugin API doesn't expose session write-back
+  //
+  // Workarounds explored:
+  // 1. Direct file write - Possible but bypasses OpenClaw's session manager
+  // 2. Trigger agent command - Could work but hacky
+  // 3. Use deleteSession + recreate - Would lose metadata
+  //
+  // Best solution: Add api.runtime.subagent.updateSessionMessages() to plugin SDK
+  //
+  // For now, we'll use direct file write as a temporary solution
 
-  log.warn("Session saving not yet implemented in plugin API");
+  try {
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+
+    // Resolve session file path using channel API
+    const sessionDir = api.runtime.channel.session.resolveStorePath(api.config);
+    const sessionFile = path.join(sessionDir, `${sessionKey}.jsonl`);
+
+    // Write modified messages back to session file
+    // Each line is a JSON object representing a turn
+    const lines = session.messages.map((msg: any) => JSON.stringify(msg));
+    await fs.writeFile(sessionFile, lines.join("\n") + "\n");
+
+    log.info(`Saved session ${sessionKey} with ${session.messages.length} messages`);
+  } catch (err) {
+    log.error(`Failed to save session ${sessionKey}`, err);
+    throw err;
+  }
 }
 
-function getContextWindow(session: any, api: any): number {
+function getContextWindow(session: any, api: OpenClawPluginApi): number {
   // TODO: Get context window from agent config
-  // Default to 200k for now
+  // For now, use OpenClaw's default of 200k
+  // Could potentially read from api.config.agents.defaults.contextWindow
   return 200000;
 }
 
-async function sendNotification(sessionKey: string, message: string, api: any): Promise<void> {
-  // TODO: Send message to session
-  // This needs to be exposed via the plugin API
+async function sendNotification(
+  sessionKey: string,
+  message: string,
+  api: OpenClawPluginApi,
+): Promise<void> {
+  try {
+    // Use subagent.run to send a message to the session
+    await api.runtime.subagent.run({
+      sessionKey,
+      message,
+      deliver: true, // Deliver to the session's channel
+      extraSystemPrompt:
+        "This is a system notification. Deliver it as-is without adding commentary.",
+    });
 
-  log.info(`Would send notification to ${sessionKey}: ${message}`);
+    log.info(`Sent notification to ${sessionKey}`);
+  } catch (err) {
+    log.error(`Failed to send notification to ${sessionKey}`, err);
+  }
 }
