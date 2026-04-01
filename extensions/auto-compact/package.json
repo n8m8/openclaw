@@ -1,0 +1,29 @@
+{
+  "name": "@openclaw/auto-compact",
+  "version": "1.0.0",
+  "description": "Automatic micro-compaction plugin for OpenClaw",
+  "keywords": [
+    "compaction",
+    "openclaw",
+    "plugin",
+    "session-management",
+    "token-management"
+  ],
+  "homepage": "https://github.com/n8m8/openclaw/tree/main/extensions/auto-compact#readme",
+  "bugs": {
+    "url": "https://github.com/n8m8/openclaw/issues"
+  },
+  "license": "MIT",
+  "author": "n8m8",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/n8m8/openclaw.git",
+    "directory": "extensions/auto-compact"
+  },
+  "type": "module",
+  "main": "index.ts",
+  "dependencies": {},
+  "peerDependencies": {
+    "openclaw": ">=2026.3.0"
+  }
+}
