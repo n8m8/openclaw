@@ -107,7 +107,9 @@ export function clearToolOutputs(
   }
 
   // Preserve recent results (skip last N)
-  const resultsToProcess = toolResults.slice(0, -preserveRecentResults);
+  // Handle case where there are fewer results than preserveRecentResults
+  const numToPreserve = Math.min(preserveRecentResults, toolResults.length);
+  const resultsToProcess = toolResults.slice(0, toolResults.length - numToPreserve);
 
   // Clear compactable tool outputs
   for (const result of resultsToProcess) {
@@ -129,15 +131,15 @@ export function clearToolOutputs(
     // Clear the content
     content.content = clearedMarker;
 
-    // Calculate tokens saved
-    const tokensAfter = estimateContentTokens(content.content);
+    // Calculate tokens after (now it's the marker)
+    const tokensAfter = estimateContentTokens(clearedMarker);
     const saved = tokensBefore - tokensAfter;
 
-    if (saved > 0) {
-      clearedCount++;
-      tokensSaved += saved;
-      clearedTools.add(toolName);
-    }
+    // Always count as cleared (even if marker is longer than content)
+    // The benefit is preventing future growth, not just immediate savings
+    clearedCount++;
+    tokensSaved += Math.max(0, saved); // Don't count negative savings
+    clearedTools.add(toolName);
   }
 
   return {
