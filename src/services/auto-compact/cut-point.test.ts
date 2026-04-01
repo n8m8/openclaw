@@ -2,25 +2,25 @@
  * Cut Point Calculator Tests
  */
 
-import { describe, it, expect } from "vitest";
 import type { AgentMessage } from "@mariozechner/pi-agent-core";
+import { describe, it, expect } from "vitest";
 import { calculateCutPoint, validateCutPoint, calculateReclaimPercentage } from "./cut-point.js";
 import type { AutoCompactionConfig } from "./types.js";
 
 const DEFAULT_CONFIG: AutoCompactionConfig = {
   enabled: true,
   triggerPercentage: 90,
-  minTokensToKeep: 2000,
-  maxTokensToKeep: 5000,
-  targetAfterCompact: 3000,
+  minTokensToKeep: 50, // Lowered for short test messages
+  maxTokensToKeep: 200,
+  targetAfterCompact: 100,
   preserveRecentTurns: 3,
-  notifyUser: true
+  notifyUser: true,
 };
 
 function createMessage(role: "user" | "assistant", text: string): AgentMessage {
   return {
     role,
-    content: [{ type: "text", text }]
+    content: [{ type: "text", text }],
   };
 }
 
@@ -29,7 +29,7 @@ function createMessages(count: number): AgentMessage[] {
   for (let i = 0; i < count; i++) {
     messages.push(
       createMessage("user", `User message ${i + 1}`),
-      createMessage("assistant", `Assistant message ${i + 1}`)
+      createMessage("assistant", `Assistant message ${i + 1}`),
     );
   }
   return messages;
@@ -38,7 +38,7 @@ function createMessages(count: number): AgentMessage[] {
 describe("calculateCutPoint", () => {
   it("should return zero cut index for empty messages", () => {
     const result = calculateCutPoint([], DEFAULT_CONFIG);
-    
+
     expect(result.cutIndex).toBe(0);
     expect(result.messagesToCompact).toBe(0);
     expect(result.messagesToKeep).toBe(0);
@@ -47,7 +47,7 @@ describe("calculateCutPoint", () => {
   it("should preserve minimum recent turns", () => {
     const messages = createMessages(10); // 20 messages total
     const result = calculateCutPoint(messages, DEFAULT_CONFIG);
-    
+
     // Should preserve at least preserveRecentTurns (3) messages
     expect(result.messagesToKeep).toBeGreaterThanOrEqual(DEFAULT_CONFIG.preserveRecentTurns);
   });
@@ -55,9 +55,9 @@ describe("calculateCutPoint", () => {
   it("should not compact if too few messages", () => {
     const messages = createMessages(2); // 4 messages total
     const config = { ...DEFAULT_CONFIG, preserveRecentTurns: 5 };
-    
+
     const result = calculateCutPoint(messages, config);
-    
+
     // Can't compact because we need to preserve 5 messages but only have 4
     expect(result.cutIndex).toBe(0);
     expect(result.messagesToCompact).toBe(0);
@@ -66,7 +66,7 @@ describe("calculateCutPoint", () => {
   it("should find cut point within token bounds", () => {
     const messages = createMessages(50); // 100 messages
     const result = calculateCutPoint(messages, DEFAULT_CONFIG);
-    
+
     // Tokens after cut should be within bounds
     expect(result.tokensAfterCut).toBeGreaterThanOrEqual(DEFAULT_CONFIG.minTokensToKeep);
     expect(result.tokensAfterCut).toBeLessThanOrEqual(DEFAULT_CONFIG.maxTokensToKeep);
@@ -75,7 +75,7 @@ describe("calculateCutPoint", () => {
   it("should compact older messages and keep recent ones", () => {
     const messages = createMessages(20); // 40 messages
     const result = calculateCutPoint(messages, DEFAULT_CONFIG);
-    
+
     // Should compact some messages
     expect(result.messagesToCompact).toBeGreaterThan(0);
     expect(result.messagesToKeep).toBeGreaterThan(0);
@@ -89,7 +89,7 @@ describe("validateCutPoint", () => {
     const messages = createMessages(20);
     const cutPoint = calculateCutPoint(messages, DEFAULT_CONFIG);
     const validation = validateCutPoint(cutPoint, DEFAULT_CONFIG);
-    
+
     expect(validation.valid).toBe(true);
     expect(validation.reason).toBeUndefined();
   });
@@ -101,11 +101,11 @@ describe("validateCutPoint", () => {
       tokensAfterCut: 3000,
       adjustedForToolPairs: false,
       messagesToCompact: 100,
-      messagesToKeep: 2 // Less than preserveRecentTurns (3)
+      messagesToKeep: 2, // Less than preserveRecentTurns (3)
     };
-    
+
     const validation = validateCutPoint(cutPoint, DEFAULT_CONFIG);
-    
+
     expect(validation.valid).toBe(false);
     expect(validation.reason).toContain("preserveRecentTurns");
   });
@@ -117,11 +117,11 @@ describe("validateCutPoint", () => {
       tokensAfterCut: 6000, // Exceeds maxTokensToKeep (5000)
       adjustedForToolPairs: false,
       messagesToCompact: 5,
-      messagesToKeep: 10
+      messagesToKeep: 10,
     };
-    
+
     const validation = validateCutPoint(cutPoint, DEFAULT_CONFIG);
-    
+
     expect(validation.valid).toBe(false);
     expect(validation.reason).toContain("exceeds max");
   });
@@ -135,11 +135,11 @@ describe("calculateReclaimPercentage", () => {
       tokensAfterCut: 3000,
       adjustedForToolPairs: false,
       messagesToCompact: 50,
-      messagesToKeep: 20
+      messagesToKeep: 20,
     };
-    
+
     const percentage = calculateReclaimPercentage(cutPoint);
-    
+
     // Total: 13000, After compaction: ~4000 (3000 + 10% of 10000)
     // Reclaimed: ~9000 / 13000 = ~69%
     expect(percentage).toBeGreaterThan(60);
@@ -153,9 +153,9 @@ describe("calculateReclaimPercentage", () => {
       tokensAfterCut: 0,
       adjustedForToolPairs: false,
       messagesToCompact: 0,
-      messagesToKeep: 0
+      messagesToKeep: 0,
     };
-    
+
     const percentage = calculateReclaimPercentage(cutPoint);
     expect(percentage).toBe(0);
   });
