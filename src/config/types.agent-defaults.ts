@@ -1,5 +1,4 @@
 import type { ChannelId } from "../channels/plugins/types.js";
-import type { AutoCompactionConfig } from "../services/auto-compact/types.js";
 import type { AgentModelConfig, AgentSandboxConfig } from "./types.agents-shared.js";
 import type {
   BlockStreamingChunkConfig,
@@ -341,8 +340,6 @@ export type AgentCompactionConfig = {
   model?: string;
   /** Maximum time in seconds for a single compaction operation (default: 900). */
   timeoutSeconds?: number;
-  /** Auto-compaction settings (micro-compaction at configurable threshold). */
-  auto?: AutoCompactionConfig;
 };
 
 export type AgentCompactionMemoryFlushConfig = {
