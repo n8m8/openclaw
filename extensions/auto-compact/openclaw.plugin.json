@@ -2,7 +2,7 @@
   "id": "auto-compact",
   "name": "Auto-Compaction",
   "description": "Automatic micro-compaction to prevent token limit overruns",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "kind": "lifecycle",
   "configSchema": {
     "type": "object",
@@ -11,82 +11,57 @@
       "enabled": {
         "type": "boolean",
         "default": true,
-        "description": "Enable automatic compaction"
+        "description": "Enable automatic micro-compaction"
       },
       "triggerPercentage": {
         "type": "number",
         "default": 90,
         "minimum": 50,
         "maximum": 98,
-        "description": "Trigger compaction at this percentage of token budget"
+        "description": "Trigger micro-compaction at this percentage of token budget"
       },
-      "minTokensToKeep": {
+      "preserveRecentResults": {
         "type": "number",
-        "default": 20000,
-        "minimum": 1000,
-        "description": "Minimum tokens to preserve after compaction"
-      },
-      "maxTokensToKeep": {
-        "type": "number",
-        "default": 50000,
-        "minimum": 1000,
-        "description": "Maximum tokens to preserve after compaction"
-      },
-      "targetAfterCompact": {
-        "type": "number",
-        "default": 30000,
-        "minimum": 1000,
-        "description": "Target token count after compaction"
-      },
-      "preserveRecentTurns": {
-        "type": "number",
-        "default": 10,
-        "minimum": 1,
-        "description": "Preserve this many recent turns verbatim"
+        "default": 5,
+        "minimum": 0,
+        "maximum": 50,
+        "description": "Preserve this many recent tool results (don't clear)"
       },
       "notifyUser": {
         "type": "boolean",
         "default": true,
         "description": "Send notification when compaction occurs"
       },
-      "summaryModel": {
-        "type": "string",
-        "description": "Optional model override for summarization (provider/model)"
+      "compactableTools": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Tool names to compact (empty = use defaults)"
       }
     }
   },
   "uiHints": {
     "enabled": {
-      "label": "Enable Auto-Compaction",
-      "description": "Automatically compact sessions when approaching token limit"
+      "label": "Enable Micro-Compaction",
+      "description": "Automatically clear verbose tool outputs when approaching token limit"
     },
     "triggerPercentage": {
       "label": "Trigger Threshold (%)",
-      "description": "Compact when token usage reaches this percentage"
+      "description": "Clear tool outputs when token usage reaches this percentage"
     },
-    "minTokensToKeep": {
-      "label": "Minimum Tokens to Keep",
-      "description": "Don't compact if it would leave less than this"
-    },
-    "maxTokensToKeep": {
-      "label": "Maximum Tokens to Keep",
-      "description": "Never keep more than this after compaction"
-    },
-    "targetAfterCompact": {
-      "label": "Target After Compaction",
-      "description": "Ideal token count after compaction"
-    },
-    "preserveRecentTurns": {
-      "label": "Recent Turns to Preserve",
-      "description": "Always keep this many recent turns intact"
+    "preserveRecentResults": {
+      "label": "Recent Results to Preserve",
+      "description": "Don't clear the last N tool outputs (keeps recent context intact)"
     },
     "notifyUser": {
       "label": "Notify on Compaction",
-      "description": "Send message to user when compaction occurs"
+      "description": "Send message when tool outputs are cleared"
     },
-    "summaryModel": {
-      "label": "Summary Model Override",
-      "description": "Use a different model for generating summaries (optional)"
+    "compactableTools": {
+      "label": "Compactable Tool Names",
+      "description": "Which tools to clear (leave empty for defaults: Read, exec, grep, glob, web_search, web_fetch, Edit, Write)",
+      "advanced": true
     }
   }
 }
