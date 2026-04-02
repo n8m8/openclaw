@@ -1,312 +1,216 @@
-# Auto-Compaction Plugin
+# Auto-Compact Plugin - Micro-Compaction for OpenClaw
 
-Automatic micro-compaction for OpenClaw to prevent token limit overruns.
+Automatically clears verbose tool outputs when approaching token limits, based on Claude Code's micro-compaction algorithm.
 
-## Overview
+## What is Micro-Compaction?
 
-This plugin automatically compacts sessions when they approach token limits (default: 90%), preventing abrupt terminations and maintaining conversation quality.
+**Micro-compaction** is a lightweight token optimization technique that:
 
-**Key Features:**
+- Clears verbose tool outputs in-place (e.g., file contents, command outputs)
+- Keeps ALL messages in conversation (no deletion or summarization)
+- Runs in milliseconds (just string replacement)
+- Can run frequently without disrupting conversation flow
 
-- ✅ Proactive compaction at 90% token usage (configurable)
-- ✅ Binary search optimization (O(log n) cut point calculation)
-- ✅ Tool call safety (never orphans tool_use/tool_result pairs)
-- ✅ 4-level warning system
-- ✅ Compaction history tracking
-- ✅ User notifications
+### vs Traditional Compaction
 
-## Installation
-
-The plugin is bundled with OpenClaw by default. Enable it in your config:
-
-```yaml
-plugins:
-  entries:
-    auto-compact:
-      enabled: true
-      config:
-        enabled: true
-        triggerPercentage: 90
-        notifyUser: true
-```
-
-## Configuration
-
-All settings are optional (defaults shown):
-
-```yaml
-plugins:
-  entries:
-    auto-compact:
-      enabled: true
-      config:
-        # Enable automatic compaction
-        enabled: true
-
-        # Trigger at 90% of token budget
-        triggerPercentage: 90
-
-        # Minimum tokens to keep after compaction
-        minTokensToKeep: 20000
-
-        # Maximum tokens to keep after compaction
-        maxTokensToKeep: 50000
-
-        # Target token count after compaction
-        targetAfterCompact: 30000
-
-        # Preserve this many recent turns verbatim
-        preserveRecentTurns: 10
-
-        # Send notification when compaction occurs
-        notifyUser: true
-
-        # Optional: Use different model for summaries
-        # summaryModel: "openrouter/anthropic/claude-sonnet-4-5"
-```
+| Feature  | Micro-Compaction   | Traditional Compaction |
+| -------- | ------------------ | ---------------------- |
+| Speed    | Milliseconds       | Seconds (LLM call)     |
+| Messages | Keeps all          | Deletes old            |
+| Method   | Clear tool outputs | Summarize conversation |
+| Cost     | Free (no API call) | API tokens for summary |
+| When     | At 90% usage       | At 100% limit          |
 
 ## How It Works
 
-### Trigger Mechanism
+1. **Hook:** `message:preprocessed` - Runs before LLM sees messages
+2. **Check:** Token usage ≥ 90% threshold
+3. **Clear:** Replace verbose tool outputs with `[Tool output cleared to save tokens]`
+4. **Result:** LLM sees cleared outputs, but session history preserved
 
-The plugin hooks into two lifecycle events:
+### What Gets Cleared
 
-1. **`message:sent`** - After agent responds (primary)
-2. **`message:received`** - Before processing user message (fallback)
+**Compactable tools** (verbose outputs):
 
-This proactive approach means:
+- `Read` - File contents
+- `exec` - Command outputs
+- `grep_tool` - Search results
+- `glob_tool` - File listings
+- `web_search` - Search results
+- `web_fetch` - Fetched content
+- `Edit` - Edit confirmations
+- `Write` - Write confirmations
 
-- Compaction happens **before** hitting the limit
-- Sessions rarely reach OpenClaw's emergency compaction
-- Users get smooth, uninterrupted conversations
+**Preserved:**
 
-### Compaction Flow
+- Last 5 tool results (configurable)
+- All non-compactable tools
+- All message structure
+- Tool use/result pairs
 
-```
-User message → Agent processes → Agent responds
-                                      ↓
-                            message:sent hook fires
-                                      ↓
-                      Check token usage (90%?)
-                                      ↓
-                              YES: Compact!
-                              NO: Continue
-                                      ↓
-                        Calculate optimal cut point
-                                      ↓
-                        Preserve recent turns
-                                      ↓
-                        Generate summary of old messages
-                                      ↓
-                        Save compacted session
-                                      ↓
-                        Notify user (if enabled)
-```
+## Configuration
 
-### Cut Point Algorithm
-
-Uses binary search to find the optimal compression point:
-
-1. **Target:** Keep `targetAfterCompact` tokens (default: 30k)
-2. **Bounds:** Between `minTokensToKeep` and `maxTokensToKeep`
-3. **Preserve:** Last `preserveRecentTurns` messages always kept
-4. **Safety:** Adjusts to avoid orphaning tool_use/tool_result pairs
-
-**Time Complexity:** O(log n) for cut point + O(n) for tool pair check = **O(n log n)**
-
-### Tool Call Safety
-
-The plugin detects tool_use/tool_result pairs and ensures they stay together:
-
-**Before adjustment:**
-
-```
-[older messages]
-tool_use: read_file          ← Would be cut here
-tool_result: file contents   ← Orphaned!
-[recent messages]
+```json
+{
+  "plugins": {
+    "entries": {
+      "auto-compact": {
+        "enabled": true,
+        "config": {
+          "triggerPercentage": 90,
+          "preserveRecentResults": 5,
+          "notifyUser": true,
+          "compactableTools": [] // Empty = use defaults
+        }
+      }
+    }
+  }
+}
 ```
 
-**After adjustment:**
+### Options
+
+- **enabled** (boolean, default: `true`) - Enable micro-compaction
+- **triggerPercentage** (number, default: `90`) - Trigger at this % of token limit
+- **preserveRecentResults** (number, default: `5`) - Keep last N tool outputs intact
+- **notifyUser** (boolean, default: `true`) - Send notification when clearing
+- **compactableTools** (array, optional) - Custom tool list (empty = defaults)
+
+## Example
+
+**Before micro-compaction:**
 
 ```
-[older messages + both tool messages]  ← Moved cut point
-[recent messages]
+User: Read the file
+Assistant: [tool_use: Read, id: tool_1]
+User: [tool_result: tool_1, content: "... 1000 lines of code ..."]
+Assistant: I see the file has...
 ```
 
-## Performance
-
-**Benchmarks:**
-
-- 100 messages: < 100ms
-- 500 messages: < 300ms
-- 1000 messages: < 500ms
-
-**Token Efficiency:**
-
-- Average reclaim: 40-60% of total tokens
-- Minimum threshold: 20% (else skips compaction)
-- Best case: 80%+ reclaim
-
-## Examples
-
-### Basic Usage
-
-Default settings work for most cases:
-
-```yaml
-plugins:
-  entries:
-    auto-compact:
-      enabled: true
-```
-
-### Aggressive Compaction
-
-Compact earlier and keep less context:
-
-```yaml
-plugins:
-  entries:
-    auto-compact:
-      config:
-        triggerPercentage: 85 # Trigger at 85%
-        targetAfterCompact: 20000 # Keep less
-        preserveRecentTurns: 5 # Fewer recent turns
-```
-
-### Conservative Compaction
-
-Wait longer and keep more context:
-
-```yaml
-plugins:
-  entries:
-    auto-compact:
-      config:
-        triggerPercentage: 95 # Wait until 95%
-        targetAfterCompact: 40000 # Keep more
-        preserveRecentTurns: 15 # More recent turns
-```
-
-### Silent Mode
-
-No user notifications:
-
-```yaml
-plugins:
-  entries:
-    auto-compact:
-      config:
-        notifyUser: false
-```
-
-## User Experience
-
-When compaction occurs, users see (if `notifyUser: true`):
+**After micro-compaction:**
 
 ```
-🗜️ Auto-compaction triggered
+User: Read the file
+Assistant: [tool_use: Read, id: tool_1]
+User: [tool_result: tool_1, content: "[Tool output cleared to save tokens]"]
+Assistant: I see the file has...
+```
 
-Compressed 50 old messages into summary
-Reclaimed 12,450 tokens (68%)
-Session continues with 21 messages preserved
+The LLM doesn't see the 1000 lines anymore, but the conversation structure is intact.
+
+## Benefits
+
+1. **Proactive** - Triggers at 90%, not at limit
+2. **Fast** - Milliseconds, not seconds
+3. **Safe** - No session writes, no file corruption
+4. **Cheap** - No API calls for summarization
+5. **Reversible** - Original outputs in session history
+
+## Implementation Details
+
+### Architecture
+
+```
+User message
+    ↓
+message:preprocessed hook fires
+    ↓
+Check token usage (90%?)
+    ↓
+YES: Clear tool outputs in-place
+    ↓
+Messages sent to LLM (with cleared outputs)
+    ↓
+Session file unchanged (originals preserved)
+```
+
+### Files
+
+- `index.ts` - Plugin registration and hook handler
+- `src/micro-compact.ts` - Core clearing algorithm
+- `src/micro-compact.test.ts` - Unit tests (12 tests, all passing)
+- `src/token-budget.ts` - Token usage tracking
+- `src/types.ts` - Type definitions
+
+### Tests
+
+```bash
+pnpm test extensions/auto-compact/src/micro-compact.test.ts
+```
+
+All 12 tests pass:
+
+- ✓ Clears compactable tool outputs
+- ✓ Preserves recent results
+- ✓ Skips non-compactable tools
+- ✓ Skips already-cleared results
+- ✓ Handles edge cases
+- ✓ Custom markers and token tracking
+
+## Comparison to Claude Code
+
+Our implementation is based on Claude Code's micro-compaction algorithm:
+
+**Similarities:**
+
+- Clears tool outputs in-place
+- No message deletion
+- No summarization
+- Preserves conversation structure
+
+**Differences:**
+
+- Claude Code uses cache edits (API-level)
+- We mutate messages before API call (no cache support needed)
+- Claude Code has time-based triggers (idle gap)
+- We trigger on token percentage only
+
+## Migration from 1.0.0
+
+Version 1.0.0 (the wrong implementation) did full summarization. To migrate:
+
+**Old config (delete these):**
+
+```json
+{
+  "minTokensToKeep": 20000,
+  "maxTokensToKeep": 50000,
+  "targetAfterCompact": 30000,
+  "preserveRecentTurns": 10,
+  "summaryModel": "..."
+}
+```
+
+**New config (use these):**
+
+```json
+{
+  "preserveRecentResults": 5,
+  "compactableTools": []
+}
 ```
 
 ## Troubleshooting
 
-### Plugin Not Running
+**Plugin not clearing outputs?**
 
-Check if enabled:
+- Check `enabled: true` in config
+- Verify token usage ≥ 90%
+- Look for `[auto-compact]` logs in gateway output
 
-```bash
-openclaw plugins list | grep auto-compact
-```
+**Too many/few outputs cleared?**
 
-Should show:
+- Adjust `preserveRecentResults` (default: 5)
+- Customize `compactableTools` array
 
-```
-✓ auto-compact (bundled)
-```
+**Session file too large?**
 
-### Too Frequent Compaction
+- Micro-compaction preserves files on disk
+- Use traditional `/compact` if disk space matters
+- Or run manual cleanup of old sessions
 
-Increase trigger threshold:
+## References
 
-```yaml
-triggerPercentage: 95 # Wait longer
-```
-
-### Too Much Context Lost
-
-Increase preservation:
-
-```yaml
-preserveRecentTurns: 20 # Keep more recent turns
-targetAfterCompact: 50000 # Keep more tokens overall
-```
-
-### Performance Issues
-
-The plugin runs async and shouldn't block responses. If you see delays:
-
-1. Check logs: `openclaw logs | grep auto-compact`
-2. Consider disabling notifications: `notifyUser: false`
-3. Increase `minTokensToKeep` to reduce compaction frequency
-
-## Development
-
-### Testing
-
-Run unit tests:
-
-```bash
-pnpm vitest run extensions/auto-compact/src/*.test.ts
-```
-
-All 22 tests should pass.
-
-### Debugging
-
-Enable debug logging:
-
-```yaml
-logging:
-  level: debug
-  subsystems:
-    plugin:auto-compact: debug
-```
-
-Then check logs:
-
-```bash
-openclaw logs | grep "plugin:auto-compact"
-```
-
-## Architecture
-
-```
-extensions/auto-compact/
-├── openclaw.plugin.json    # Plugin manifest
-├── package.json             # NPM metadata
-├── index.ts                 # Hook handlers
-├── README.md                # This file
-└── src/
-    ├── types.ts             # TypeScript types
-    ├── token-budget.ts      # Usage monitoring
-    ├── cut-point.ts         # Binary search algorithm
-    ├── tool-pair-adjuster.ts # Tool call safety
-    ├── executor.ts          # Compaction orchestration
-    ├── middleware.ts        # Session integration
-    └── integration.ts       # Helper functions
-```
-
-## Related
-
-- **Issue:** https://github.com/n8m8/openclaw/issues/5
-- **Upstream:** https://github.com/openclaw/openclaw/issues/31787
-- **Inspired by:** Claude Code (Claurst) fan remake
-
-## License
-
-MIT
+- Original issue: https://github.com/n8m8/openclaw/issues/5
+- Claude Code spec: `claurst-main/spec/06_services_context_state.md`
+- Design docs: `REDESIGN.md`, `ROADBLOCKS.md`
