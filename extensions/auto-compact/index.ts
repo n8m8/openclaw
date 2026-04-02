@@ -35,13 +35,20 @@ export default function register(api: OpenClawPluginApi) {
   // Hook into message:preprocessed to clear tool outputs BEFORE sending to LLM
   // This is the key difference from wrong implementation - we don't write sessions,
   // we just mutate messages in-flight
-  api.registerHook("message:preprocessed", async (event) => {
-    try {
-      await handleMessagePreprocessed(event, api);
-    } catch (err) {
-      log.error("Micro-compaction failed in message:preprocessed hook", err);
-    }
-  });
+  api.registerHook(
+    "message:preprocessed",
+    async (event) => {
+      try {
+        await handleMessagePreprocessed(event, api);
+      } catch (err) {
+        log.error("Micro-compaction failed in message:preprocessed hook", err);
+      }
+    },
+    {
+      name: "micro-compaction",
+      description: "Clear verbose tool outputs when approaching token limit",
+    },
+  );
 
   log.info("Micro-Compaction hook registered (message:preprocessed)");
 }
