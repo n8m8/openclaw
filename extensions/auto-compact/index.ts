@@ -61,6 +61,8 @@ async function handleMessagePreprocessed(event: any, api: OpenClawPluginApi) {
     hasEvent: !!event,
     eventKeys: event ? Object.keys(event) : [],
     sessionKey: event?.sessionKey,
+    messageId: event?.messageId,
+    channel: event?.channel,
   });
 
   // Get plugin config
@@ -145,6 +147,9 @@ async function handleMessagePreprocessed(event: any, api: OpenClawPluginApi) {
         `(tools: ${result.clearedTools.join(", ")})`,
     );
 
+    // Add checkmark reaction on success
+    await addReaction(event, "white_check_mark", api);
+
     // Notify user if configured
     if (pluginConfig.notifyUser) {
       log.debug("Sending user notification");
@@ -156,6 +161,9 @@ async function handleMessagePreprocessed(event: any, api: OpenClawPluginApi) {
       `⚠️ Micro-compaction triggered at ${budget.percentUsed.toFixed(1)}% but no outputs needed clearing ` +
         `(${result.clearedCount} candidates found)`,
     );
+
+    // Add warning reaction on no-op
+    await addReaction(event, "warning", api);
   }
 }
 
@@ -196,5 +204,40 @@ async function sendNotification(
     log.info(`Sent notification to ${sessionKey}`);
   } catch (err) {
     log.error(`Failed to send notification to ${sessionKey}`, err);
+  }
+}
+
+/**
+ * Add a Slack reaction to the triggering message
+ */
+async function addReaction(event: any, emoji: string, api: OpenClawPluginApi): Promise<void> {
+  // Check if this is a Slack message
+  if (event?.channel !== "slack" || !event?.messageId) {
+    log.debug("Not a Slack message, skipping reaction", {
+      channel: event?.channel,
+      hasMessageId: !!event?.messageId,
+    });
+    return;
+  }
+
+  try {
+    // Extract channel and timestamp from message metadata
+    const channelId = event.channelId;
+    const timestamp = event.messageId;
+
+    if (!channelId || !timestamp) {
+      log.debug("Missing channel or timestamp for reaction", { channelId, timestamp });
+      return;
+    }
+
+    // Use slack-executive skill to add reaction
+    await api.runtime.exec.run({
+      command: `~/.openclaw/skills/slack-executive/scripts/slack.py messages react ${channelId} ${timestamp} ${emoji}`,
+      cwd: process.cwd(),
+    });
+
+    log.debug(`Added ${emoji} reaction to ${channelId}/${timestamp}`);
+  } catch (err) {
+    log.error(`Failed to add reaction ${emoji}`, err);
   }
 }
