@@ -39,9 +39,12 @@ export default function register(api: OpenClawPluginApi) {
     "message:preprocessed",
     async (event) => {
       try {
+        log.debug("🎣 Hook invoked: message:preprocessed");
         await handleMessagePreprocessed(event, api);
       } catch (err) {
-        log.error("Micro-compaction failed in message:preprocessed hook", err);
+        log.error("❌ Micro-compaction failed in message:preprocessed hook", err);
+        // Re-throw to ensure errors aren't silently swallowed
+        throw err;
       }
     },
     {
@@ -50,21 +53,41 @@ export default function register(api: OpenClawPluginApi) {
     },
   );
 
-  log.info("Micro-Compaction hook registered (message:preprocessed)");
+  log.info("✅ Micro-Compaction hook registered (message:preprocessed)");
 }
 
 async function handleMessagePreprocessed(event: any, api: OpenClawPluginApi) {
+  log.debug("message:preprocessed hook called", {
+    hasEvent: !!event,
+    eventKeys: event ? Object.keys(event) : [],
+    sessionKey: event?.sessionKey,
+  });
+
   // Get plugin config
   const pluginConfig = api.config.plugins?.entries?.["auto-compact"]?.config;
   if (!pluginConfig?.enabled) {
+    log.debug("Plugin disabled in config");
     return; // Plugin disabled
   }
+
+  log.debug("Plugin config loaded", {
+    triggerPercentage: pluginConfig.triggerPercentage,
+    preserveRecentResults: pluginConfig.preserveRecentResults,
+    notifyUser: pluginConfig.notifyUser,
+  });
 
   // Get messages from event
   const messages = event.messages;
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    log.debug("No messages in event", {
+      hasMessages: !!messages,
+      isArray: Array.isArray(messages),
+      length: messages?.length,
+    });
     return;
   }
+
+  log.debug(`Processing ${messages.length} messages`);
 
   // Build config
   const microConfig: MicroCompactConfig = {
@@ -78,34 +101,61 @@ async function handleMessagePreprocessed(event: any, api: OpenClawPluginApi) {
   const contextWindow = 200000; // TODO: Get from agent config
   const budget = calculateTokenBudget(messages, contextWindow);
 
+  log.debug("Token budget calculated", {
+    used: budget.used,
+    limit: budget.limit,
+    percentUsed: budget.percentUsed.toFixed(2),
+    remaining: budget.remaining,
+  });
+
   // Check if we should trigger
   const triggerPercentage = pluginConfig.triggerPercentage ?? 90;
-  if (!shouldMicroCompact(messages, budget.used, contextWindow, triggerPercentage)) {
+  const shouldTrigger = shouldMicroCompact(messages, budget.used, contextWindow, triggerPercentage);
+
+  log.debug("Trigger check", {
+    shouldTrigger,
+    triggerPercentage,
+    currentPercentage: budget.percentUsed.toFixed(2),
+    comparison: `${budget.percentUsed.toFixed(2)} >= ${triggerPercentage}`,
+  });
+
+  if (!shouldTrigger) {
     return; // Not at threshold yet
   }
 
   log.info(
-    `Micro-compaction triggering at ${budget.percentUsed.toFixed(1)}% ` +
+    `🧹 Micro-compaction TRIGGERING at ${budget.percentUsed.toFixed(1)}% ` +
       `(${budget.used.toLocaleString()}/${budget.limit.toLocaleString()} tokens)`,
   );
 
   // Clear tool outputs in-place
   const result = clearToolOutputs(messages, microConfig);
 
+  log.debug("clearToolOutputs result", {
+    modified: result.modified,
+    clearedCount: result.clearedCount,
+    tokensSaved: result.tokensSaved,
+    clearedTools: result.clearedTools,
+  });
+
   if (result.modified) {
     log.info(
-      `Micro-compaction complete: cleared ${result.clearedCount} tool outputs, ` +
+      `✅ Micro-compaction COMPLETE: cleared ${result.clearedCount} tool outputs, ` +
         `saved ${result.tokensSaved.toLocaleString()} tokens ` +
         `(tools: ${result.clearedTools.join(", ")})`,
     );
 
     // Notify user if configured
     if (pluginConfig.notifyUser) {
+      log.debug("Sending user notification");
       const notification = formatNotification(result, budget);
       await sendNotification(event.sessionKey, notification, api);
     }
   } else {
-    log.debug("Micro-compaction triggered but no outputs needed clearing");
+    log.info(
+      `⚠️ Micro-compaction triggered at ${budget.percentUsed.toFixed(1)}% but no outputs needed clearing ` +
+        `(${result.clearedCount} candidates found)`,
+    );
   }
 }
 
